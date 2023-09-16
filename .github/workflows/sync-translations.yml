@@ -1,4 +1,4 @@
-name: Check Update
+name: Sync Translations
 
 on:
   workflow_dispatch:
