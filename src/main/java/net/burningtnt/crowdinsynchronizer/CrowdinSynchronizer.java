@@ -190,7 +190,7 @@ public final class CrowdinSynchronizer {
                             Logging.getLogger().log(Level.INFO, String.format("[%s]%s FINISHED", difference.getType().name(), difference.getKey()));
                         }
                         case REMOVE -> {
-                            CrowdinAPI.removeTranslationValue(token, project, column.getCrowdinTranslationKeys().get(difference.getKey()));
+                            CrowdinAPI.removeTranslationKey(token, project, column.getCrowdinTranslationKeys().get(difference.getKey()));
 
                             Logging.getLogger().log(Level.INFO, String.format("[%s]%s FINISHED", difference.getType().name(), difference.getKey()));
                         }

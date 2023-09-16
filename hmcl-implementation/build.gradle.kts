@@ -31,11 +31,12 @@ tasks.getByName("build") {
 
 tasks.create("sync", JavaExec::class) {
     classpath = sourceSets["main"].runtimeClasspath
-    main = "net.burningtnt.hmclcrowdinsynchronizer.Main"
+    mainClass.set("net.burningtnt.hmclcrowdinsynchronizer.Main")
     this.jvmArgs = listOf(
         "-Dhmcl.cs.crowdinToken=${Objects.requireNonNullElse(System.getenv("HMCL_CROWDIN_TOKEN"), "")}",
         "-Dhmcl.cs.githubToken=${Objects.requireNonNullElse(System.getenv("HMCL_GITHUB_TOKEN"), "")}"
     )
+    this.workingDir = rootProject.rootDir
 }
 
 dependencies {

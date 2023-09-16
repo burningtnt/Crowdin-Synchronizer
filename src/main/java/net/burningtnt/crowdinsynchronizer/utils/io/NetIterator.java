@@ -21,6 +21,15 @@ public interface NetIterator<E> {
         }
     }
 
+    default <E2 extends Throwable> void exceptionalForEachRemaining(ExceptionalConsumer<E, E2> action) throws E2, IOException {
+        Objects.requireNonNull(action);
+        while (this.hasNext()) {
+            for (E e : this.next()) {
+                action.accept(e);
+            }
+        }
+    }
+
     default List<E> collectAsList() throws IOException {
         List<E> list = new ArrayList<>();
         while (this.hasNext()) {

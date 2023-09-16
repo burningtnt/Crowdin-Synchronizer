@@ -106,32 +106,35 @@ public final class CrowdinAPI {
         ), httpPost -> {
             int index = filePath.lastIndexOf("/");
             httpPost.setHeader("Crowdin-API-FileName", index == -1 ? filePath : filePath.substring(index));
-            httpPost.setEntity(new StringEntity("", ContentType.TEXT_PLAIN));
+            httpPost.setEntity(new StringEntity(",", ContentType.TEXT_PLAIN));
         }), CrowdinStorageObject.class);
 
-        return getHttpClient(token).execute(Lang.tweak(new HttpPost(
-                NetworkUtils.format(
-                        String.format("https://api.crowdin.com/api/v2/projects/%s/files", project.getID()),
-                        Map.of()
-                )
-        ), httpPost -> {
-            httpPost.setHeader("Content-Type", JSON_CONTENT_TYPE);
-            httpPost.setEntity(new StringEntity(Lang.getGson().toJson(Lang.asJsonObject(Map.of(
-                    "storageId", new JsonPrimitive(storage.getID()),
-                    "name", new JsonPrimitive(filePath),
-                    "type", new JsonPrimitive("csv"),
-                    "importOptions", Lang.asJsonObject(Map.of(
-                            "scheme", Lang.asJsonObject(Lang.tweak(new TreeMap<>(), map -> {
-                                for (int i = 0; i < FILE_DEFAULT_COLUMNS.length; i++) {
-                                    map.put(FILE_DEFAULT_COLUMNS[i], new JsonPrimitive(i));
-                                }
-                                for (int i = 0; i < languages.size(); i++) {
-                                    map.put(languages.get(i), new JsonPrimitive(i + FILE_DEFAULT_COLUMNS.length));
-                                }
-                            }))
-                    ))
-            ))), ContentType.APPLICATION_JSON));
-        }), CrowdinFileObject.class);
+        return Lang.exceptionalTweak(
+                getHttpClient(token).execute(Lang.tweak(new HttpPost(
+                        NetworkUtils.format(
+                                String.format("https://api.crowdin.com/api/v2/projects/%s/files", project.getID()),
+                                Map.of()
+                        )
+                ), httpPost -> {
+                    httpPost.setHeader("Content-Type", JSON_CONTENT_TYPE);
+                    httpPost.setEntity(new StringEntity(Lang.getGson().toJson(Lang.asJsonObject(Map.of(
+                            "storageId", new JsonPrimitive(storage.getID()),
+                            "name", new JsonPrimitive(filePath),
+                            "type", new JsonPrimitive("csv"),
+                            "importOptions", Lang.asJsonObject(Map.of(
+                                    "scheme", Lang.asJsonObject(Lang.tweak(new TreeMap<>(), map -> {
+                                        for (int i = 0; i < FILE_DEFAULT_COLUMNS.length; i++) {
+                                            map.put(FILE_DEFAULT_COLUMNS[i], new JsonPrimitive(i));
+                                        }
+                                        for (int i = 0; i < languages.size(); i++) {
+                                            map.put(languages.get(i), new JsonPrimitive(i + FILE_DEFAULT_COLUMNS.length));
+                                        }
+                                    }))
+                            ))
+                    ))), ContentType.APPLICATION_JSON));
+                }), CrowdinFileObject.class),
+                file -> getTranslationKeys(token, project, file).exceptionalForEachRemaining(key -> removeTranslationKey(token, project, key))
+        );
     }
 
     public static void deleteFile(CrowdinToken token, CrowdinProjectObject project, CrowdinFileObject file) throws IOException {
@@ -165,7 +168,7 @@ public final class CrowdinAPI {
         }), CrowdinTranslationKeyItemObject.class);
     }
 
-    public static void removeTranslationValue(CrowdinToken token, CrowdinProjectObject project, CrowdinTranslationKeyItemObject key) throws IOException {
+    public static void removeTranslationKey(CrowdinToken token, CrowdinProjectObject project, CrowdinTranslationKeyItemObject key) throws IOException {
         getHttpClient(token).execute(new HttpDelete(
                 String.format("https://api.crowdin.com/api/v2/projects/%s/strings/%s", project.getID(), key.getID())
         ));
