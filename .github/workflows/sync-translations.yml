@@ -1,0 +1,27 @@
+name: Check Update
+
+on:
+  workflow_dispatch:
+
+permissions: write-all
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+          java-package: 'jdk'
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+      - name: Build with Gradle
+        run: ./gradlew build --stacktrace -Dorg.gradle.parallel=true
+      - name: Sync translations to Crowdin
+        run: ./gradlew :hmcl-implementation:sync
+        env:
+          HMCL_CROWDIN_TOKEN: ${{ secrets.HMCL_CROWDIN_TOKEN }}
+          HMCL_GITHUB_TOKEN: ${{ secrets.HMCL_GITHUB_TOKEN }}

@@ -3,6 +3,7 @@ package net.burningtnt.hmclcrowdinsynchronizer;
 import net.burningtnt.crowdinsynchronizer.CrowdinSynchronizer;
 import net.burningtnt.crowdinsynchronizer.crowdin.CrowdinToken;
 import net.burningtnt.crowdinsynchronizer.locali18n.PropertiesI18NFile;
+import net.burningtnt.crowdinsynchronizer.utils.Lang;
 import net.burningtnt.crowdinsynchronizer.utils.logger.Logging;
 
 import java.io.IOException;
@@ -27,11 +28,16 @@ public final class Main {
 
         if (!Files.exists(hmclGitPath)) {
             Logging.getLogger().log(Level.INFO, "Cloning HMCL git repository.");
-            new ProcessBuilder("git", "clone", "-b", "crowdin-translations", String.format("https://%s@github.com/burningtnt/HMCL.git", githubToken), HMCL_GIT_REPOSITORY)
-                    .directory(hmclGitPath.getParent().toFile())
-                    .inheritIO()
-                    .start()
-                    .waitFor();
+            Lang.joinProcess(
+                    new ProcessBuilder("git", "clone", "-b", "javafx", String.format("https://%s@github.com/huanghongxun/HMCL.git", githubToken), HMCL_GIT_REPOSITORY)
+                            .directory(hmclGitPath.getParent().toFile())
+            );
+
+            Logging.getLogger().log(Level.INFO, "Configuring local HMCL git repository.");
+            Lang.joinProcess(
+                    new ProcessBuilder("git", "remote", "add", "fork-repository", "git@github.com:burningtnt/HMCL.git")
+                            .directory(hmclGitPath.toFile())
+            );
         }
 
         Path langDir = hmclGitPath.resolve("HMCL/src/main/resources/assets/lang").toAbsolutePath();
@@ -54,22 +60,19 @@ public final class Main {
         );
 
         Logging.getLogger().log(Level.INFO, "Pushing HMCL git repository ...");
-        new ProcessBuilder("git", "add", ".")
-                .directory(hmclGitPath.toFile())
-                .inheritIO()
-                .start()
-                .waitFor();
+        Lang.joinProcess(
+                new ProcessBuilder("git", "add", ".")
+                        .directory(hmclGitPath.toFile())
+        );
 
-        new ProcessBuilder("git", "commit", "-m", "[Crowdin Synchronizer] Sync I18N from crowdin.")
-                .directory(hmclGitPath.toFile())
-                .inheritIO()
-                .start()
-                .waitFor();
+        Lang.joinProcess(
+                new ProcessBuilder("git", "commit", "-m", "[Crowdin Synchronizer] Sync I18N from crowdin.")
+                        .directory(hmclGitPath.toFile())
+        );
 
-        new ProcessBuilder("git", "push", "origin", "crowdin-translations")
-                .directory(hmclGitPath.toFile())
-                .inheritIO()
-                .start()
-                .waitFor();
+        Lang.joinProcess(
+                new ProcessBuilder("git", "push", "-f", "fork-repository", "crowdin-translations")
+                        .directory(hmclGitPath.toFile())
+        );
     }
 }

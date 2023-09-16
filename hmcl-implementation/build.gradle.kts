@@ -1,3 +1,5 @@
+import java.util.Objects
+
 plugins {
     id("java")
     id("checkstyle")
@@ -25,6 +27,15 @@ tasks.getByName("build") {
     dependsOn(tasks.getByName("checkstyleTest") {
         group = "build"
     })
+}
+
+tasks.create("sync", JavaExec::class) {
+    classpath = sourceSets["main"].runtimeClasspath
+    main = "net.burningtnt.hmclcrowdinsynchronizer.Main"
+    this.jvmArgs = listOf(
+        "-Dhmcl.cs.crowdinToken=${Objects.requireNonNullElse(System.getenv("HMCL_CROWDIN_TOKEN"), "")}",
+        "-Dhmcl.cs.githubToken=${Objects.requireNonNullElse(System.getenv("HMCL_GITHUB_TOKEN"), "")}"
+    )
 }
 
 dependencies {

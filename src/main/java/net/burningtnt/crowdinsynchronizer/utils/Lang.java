@@ -96,4 +96,13 @@ public final class Lang {
         printWriter.close();
         return stringWriter.getBuffer().toString();
     }
+
+    public static Process joinProcess(ProcessBuilder processBuilder) throws IOException, InterruptedException {
+        Process process = processBuilder.inheritIO().start();
+        int exitCode = process.waitFor();
+        if (exitCode != 0) {
+            throw new IOException(String.format("Process %s returns %d.", process, exitCode));
+        }
+        return process;
+    }
 }
