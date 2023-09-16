@@ -39,7 +39,10 @@ public final class Main {
         CrowdinSynchronizer.sync(
                 CrowdinToken.of(crowdinToken),
                 "hello-minecraft-launcher",
-                c -> String.format("/I18N-%s.csv", c),
+                s -> {
+                    int index = s.indexOf(".");
+                    return (index == -1 ? s : s.substring(0, index)) + ".csv";
+                },
                 new PropertiesI18NFile("en", langDir.resolve("I18N.properties")),
                 List.of(
                         new PropertiesI18NFile("zh-CN", langDir.resolve("I18N_zh_CN.properties")),

@@ -1,12 +1,11 @@
 package net.burningtnt.crowdinsynchronizer.crowdin;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import net.burningtnt.crowdinsynchronizer.crowdin.objects.DataItem;
+import net.burningtnt.crowdinsynchronizer.utils.Lang;
 import net.burningtnt.crowdinsynchronizer.utils.io.ExceptionalFunction;
 import net.burningtnt.crowdinsynchronizer.utils.io.NetIterator;
 import net.burningtnt.crowdinsynchronizer.utils.io.NetworkUtils;
-import org.apache.http.HttpResponse;
+import org.apache.http.client.methods.HttpUriRequest;
 
 import java.io.IOException;
 import java.net.URI;
@@ -14,15 +13,19 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public final class CrowdinPageIterator<E> implements NetIterator<E> {
     public static URI format(String url, Map<String, String> queryArgs, PageDataContainer.PageData pageData) throws IOException {
-        return NetworkUtils.format(url, Stream.concat(queryArgs.entrySet().stream(), Stream.of(Map.entry("offset", String.valueOf(pageData.offset)))));
+        return NetworkUtils.format(
+                url,
+                Stream.concat(
+                        queryArgs.entrySet().stream(),
+                        Stream.of(Map.entry("offset", String.valueOf(pageData.offset)))
+                ));
     }
-
-    private static final Gson GSON = new GsonBuilder().create();
 
     public static final class PageDataContainer {
         public static final class PageData {
@@ -45,9 +48,11 @@ public final class CrowdinPageIterator<E> implements NetIterator<E> {
         }
     }
 
-    private final ExceptionalFunction<PageDataContainer.PageData, HttpResponse, IOException> requester;
+    private final ExceptionalFunction<PageDataContainer.PageData, HttpUriRequest, IOException> requester;
 
     private final Class<E> dataType;
+
+    private final Supplier<CrowdinAPI.HttpClientDelegate> httpClientDelegateSupplier;
 
     private int currentOffset = 0;
 
@@ -57,8 +62,9 @@ public final class CrowdinPageIterator<E> implements NetIterator<E> {
 
     private PageDataContainer.PageData pageData = null;
 
-    public CrowdinPageIterator(ExceptionalFunction<PageDataContainer.PageData, HttpResponse, IOException> requester, Class<E> dataType) {
+    public CrowdinPageIterator(ExceptionalFunction<PageDataContainer.PageData, HttpUriRequest, IOException> requester, Supplier<CrowdinAPI.HttpClientDelegate> httpClientDelegateSupplier, Class<E> dataType) {
         this.requester = requester;
+        this.httpClientDelegateSupplier = httpClientDelegateSupplier;
         this.dataType = dataType;
     }
 
@@ -89,9 +95,17 @@ public final class CrowdinPageIterator<E> implements NetIterator<E> {
             return;
         }
 
-        HttpResponse response = this.requester.apply(new PageDataContainer.PageData(this.currentOffset, 50));
-        PageDataContainer pageDataContainer = GSON.fromJson(NetworkUtils.readResponseBody(response.getEntity()), PageDataContainer.class);
-        this.responses = Arrays.stream(pageDataContainer.data).map(dataItem -> GSON.fromJson(dataItem.getData(), this.dataType)).collect(Collectors.toList());
+        HttpUriRequest request = this.requester.apply(new PageDataContainer.PageData(this.currentOffset, 50));
+        PageDataContainer pageDataContainer = this.httpClientDelegateSupplier.get().execute(
+                request,
+                response -> Lang.getGson().fromJson(
+                        Lang.readAllBytesAsString(() -> NetworkUtils.readResponseBody(response.getEntity())),
+                        PageDataContainer.class
+                )
+        );
+        this.responses = Arrays.stream(pageDataContainer.data).map(
+                dataItem -> Lang.getGson().fromJson(dataItem.getData(), this.dataType)
+        ).collect(Collectors.toList());
         this.responseOffset = this.currentOffset;
         this.pageData = pageDataContainer.pagination;
     }

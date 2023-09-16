@@ -15,7 +15,7 @@ public interface ExceptionalFunction<T, R, E extends Throwable> {
         return (T t) -> after.apply(apply(t));
     }
 
-    static <T> ExceptionalFunction<T, T, RuntimeException> identity() {
+    static <T, E extends Throwable> ExceptionalFunction<T, T, E> identity() {
         return t -> t;
     }
 }

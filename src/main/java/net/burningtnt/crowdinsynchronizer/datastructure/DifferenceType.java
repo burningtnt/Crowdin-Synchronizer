@@ -1,4 +1,4 @@
-package net.burningtnt.crowdinsynchronizer;
+package net.burningtnt.crowdinsynchronizer.datastructure;
 
 public enum DifferenceType {
     ADD(false),

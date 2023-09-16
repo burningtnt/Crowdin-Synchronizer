@@ -1,6 +1,6 @@
 package net.burningtnt.crowdinsynchronizer.crowdin.objects;
 
-public final class CrowdinFileObject {
+public final class CrowdinFileObject implements Comparable<CrowdinFileObject> {
     private final int id;
 
     private final String path;
@@ -34,5 +34,10 @@ public final class CrowdinFileObject {
         int result = id;
         result = 31 * result + path.hashCode();
         return result;
+    }
+
+    @Override
+    public int compareTo(CrowdinFileObject crowdinFileObject) {
+        return this.path.compareTo(crowdinFileObject == null ? "" : crowdinFileObject.getPath());
     }
 }

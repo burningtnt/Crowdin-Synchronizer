@@ -3,6 +3,9 @@ package net.burningtnt.crowdinsynchronizer;
 import net.burningtnt.crowdinsynchronizer.crowdin.CrowdinAPI;
 import net.burningtnt.crowdinsynchronizer.crowdin.CrowdinToken;
 import net.burningtnt.crowdinsynchronizer.crowdin.objects.*;
+import net.burningtnt.crowdinsynchronizer.datastructure.Column;
+import net.burningtnt.crowdinsynchronizer.datastructure.Difference;
+import net.burningtnt.crowdinsynchronizer.datastructure.DifferenceType;
 import net.burningtnt.crowdinsynchronizer.locali18n.AbstractI18NFile;
 import net.burningtnt.crowdinsynchronizer.utils.Lang;
 import net.burningtnt.crowdinsynchronizer.utils.io.ExceptionalFunction;
@@ -10,16 +13,12 @@ import net.burningtnt.crowdinsynchronizer.utils.io.NetIterator;
 import net.burningtnt.crowdinsynchronizer.utils.logger.Logging;
 
 import java.io.IOException;
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.Map;
-import java.util.TreeMap;
+import java.util.*;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
-import java.util.stream.Collectors;
 
 public final class CrowdinSynchronizer {
     private CrowdinSynchronizer() {
@@ -41,39 +40,17 @@ public final class CrowdinSynchronizer {
         throw new IllegalArgumentException(String.format("Cannot find any project with name %s.", projectIdentifier));
     }
 
-    private static CrowdinFileObject getSpecificFileByFilePath(CrowdinToken token, CrowdinProjectObject project, String filePath) throws IOException {
-        NetIterator<CrowdinFileObject> fileIterator = CrowdinAPI.getFiles(token, project);
-        while (fileIterator.hasNext()) {
-            for (CrowdinFileObject item : fileIterator.next()) {
-                if (item.getPath().equals(filePath)) {
-                    return item;
-                }
-            }
-        }
-        throw new IllegalArgumentException(String.format("Cannot find any file with path %s.", filePath));
-    }
-
     public static void init() {
         Logging.init();
     }
 
-    public static void sync(CrowdinToken token, String projectIdentifier, ExceptionalFunction<Character, String, IllegalArgumentException> filePathProvider, AbstractI18NFile sourceLanguage, Collection<AbstractI18NFile> targetLanguages) throws IOException, InterruptedException {
+    public static void sync(CrowdinToken token, String projectIdentifier, ExceptionalFunction<String, String, IllegalArgumentException> filePathProvider, AbstractI18NFile sourceLanguage, Collection<AbstractI18NFile> targetLanguages) throws IOException, InterruptedException {
+        Logging.getLogger().log(Level.INFO, "Collecting local translations ...");
         sourceLanguage.load();
-        for (String sourceTranslationKey : sourceLanguage.getTranslationKeys()) {
-            char column = sourceTranslationKey.charAt(0);
-            if (column > 'z' || column < 'a') {
-                throw new IllegalArgumentException(String.format("Illegal translation key %s in translation for %s.", sourceTranslationKey, sourceLanguage.getLanguage()));
-            }
-        }
         for (AbstractI18NFile targetLanguage : targetLanguages) {
             targetLanguage.load();
 
             for (String targetTranslationKey : targetLanguage.getTranslationKeys()) {
-                char column = targetTranslationKey.charAt(0);
-                if (column > 'z' || column < 'a') {
-                    throw new IllegalArgumentException(String.format("Illegal translation key %s in translation for %s.", targetTranslationKey, targetLanguage.getLanguage()));
-                }
-
                 if (!sourceLanguage.getTranslationKeys().contains(targetTranslationKey)) {
                     Logging.getLogger().log(Level.WARNING, String.format(
                             "Translation for %s contains extra translation key %s, which will be ignored!",
@@ -84,6 +61,8 @@ public final class CrowdinSynchronizer {
             }
         }
 
+        List<String> targetLanguageIDs = targetLanguages.stream().map(AbstractI18NFile::getLanguage).toList();
+
         Logging.getLogger().log(Level.INFO, "Logging in ...");
         CrowdinUserDataObject currentUser = getCurrentUser(token);
         Logging.getLogger().log(Level.INFO, String.format("Logged in as %s (%d).", currentUser.getUsername(), currentUser.getID()));
@@ -92,93 +71,97 @@ public final class CrowdinSynchronizer {
         CrowdinProjectObject project = getSpecificProjectByProjectIdentifier(token, currentUser, projectIdentifier);
         Logging.getLogger().log(Level.INFO, String.format("Current project: %s.", project.getIdentifier()));
 
-        Logging.getLogger().log(Level.INFO, "Getting specific file ...");
-        Map<Character, CrowdinFileObject> files = new TreeMap<>();
-        for (Character c : "abcdefghijklmnopqrstuvwxyz".toCharArray()) {
-            files.put(c, getSpecificFileByFilePath(token, project, filePathProvider.apply(c)));
-        }
-
-        Logging.getLogger().log(Level.INFO, String.format("Current files: {%s}.", files.values().stream().map(CrowdinFileObject::getPath).collect(Collectors.joining(", "))));
-
-        Logging.getLogger().log(Level.INFO, "Collecting crowdin translation keys ...");
-        Map<Character, Map<String, CrowdinTranslationKeyItemObject>> crowdinTranslationKeys = new TreeMap<>();
-        for (Character c : "abcdefghijklmnopqrstuvwxyz".toCharArray()) {
-            crowdinTranslationKeys.put(c, new TreeMap<>());
-        }
-        for (Map.Entry<Character, CrowdinFileObject> entry : files.entrySet()) {
-            CrowdinAPI.getTranslationKeys(token, project, entry.getValue()).forEachRemaining(key -> crowdinTranslationKeys.get(entry.getKey()).put(key.getIdentifier(), key));
-        }
+        Logging.getLogger().log(Level.INFO, "Collecting crowdin translation files ...");
+        Map<String, CrowdinFileObject> crowdinFiles = new ConcurrentSkipListMap<>(); // Crowdin File Path -> Crowdin File Object
+        Map<CrowdinFileObject, Column> columns = new TreeMap<>(); // Crowdin File Object -> Column
+        CrowdinAPI.getFiles(token, project).forEachRemaining(crowdinFile -> crowdinFiles.put(crowdinFile.getPath(), crowdinFile));
         Logging.getLogger().log(Level.INFO, String.format(
-                "Crowdin translation keys: \n%s\n.",
-                crowdinTranslationKeys.entrySet().stream()
-                        .map(entry -> String.format("    %s: {%s}", entry.getKey(), String.join(", ", entry.getValue().keySet())))
-                        .collect(Collectors.joining("\n"))
+                "Collected crowdin translation files: %s.",
+                String.join(", ", crowdinFiles.keySet())
         ));
 
-        Logging.getLogger().log(Level.INFO, "Loading differences ...");
-        Map<Character, Map<String, DifferenceType>> differences = new ConcurrentSkipListMap<>();
-        for (Character c : "abcdefghijklmnopqrstuvwxyz".toCharArray()) {
-            differences.put(c, new TreeMap<>());
-        }
-
+        Logging.getLogger().log(Level.INFO, "Collecting local translations columns ...");
         for (String sourceTranslationKey : sourceLanguage.getTranslationKeys()) {
-            Character column = sourceTranslationKey.charAt(0);
-            if (!crowdinTranslationKeys.get(column).containsKey(sourceTranslationKey)) {
-                differences.get(column).put(sourceTranslationKey, DifferenceType.ADD);
+            String filePath = filePathProvider.apply(sourceTranslationKey);
+            if (crowdinFiles.containsKey("/" + filePath)) {
+                CrowdinFileObject crowdinFile = crowdinFiles.get("/" + filePath);
+                Column column = columns.get(crowdinFile);
+                if (column == null) {
+                    column = new Column(crowdinFile);
+                    Logging.getLogger().log(Level.INFO, String.format("Collecting crowdin translation keys in file %s ...", filePath));
+
+                    Column columnCopy = column;
+                    CrowdinAPI.getTranslationKeys(token, project, crowdinFile).forEachRemaining(
+                            crowdinTranslationKey ->
+                                    columnCopy.getCrowdinTranslationKeys().put(crowdinTranslationKey.getIdentifier(), crowdinTranslationKey)
+                    );
+                    columns.put(crowdinFile, column);
+                }
+                column.getLocalTranslationKeys().add(sourceTranslationKey);
             } else {
-                differences.get(column).put(sourceTranslationKey, DifferenceType.SYNC);
+                Logging.getLogger().log(Level.INFO, String.format("Missing crowdin translation file %s (for key %s), creating ...", filePath, sourceTranslationKey));
+                CrowdinFileObject crowdinFile = CrowdinAPI.addFile(token, project, filePath, targetLanguageIDs);
+                crowdinFiles.put(crowdinFile.getPath(), crowdinFile);
+                Column column = columns.computeIfAbsent(crowdinFile, Column::new);
+                column.getLocalTranslationKeys().add(sourceTranslationKey);
             }
         }
 
-        for (Character column : crowdinTranslationKeys.keySet()) {
-            for (String crowdinTranslationKey : crowdinTranslationKeys.get(column).keySet()) {
-                if (!sourceLanguage.getTranslationKeys().contains(crowdinTranslationKey)) {
-                    differences.get(column).put(crowdinTranslationKey, DifferenceType.REMOVE);
+        Logging.getLogger().log(Level.INFO, "Loading differences ...");
+        for (Column column : columns.values()) {
+            for (String sourceTranslationKey : column.getLocalTranslationKeys()) {
+                if (column.getCrowdinTranslationKeys().containsKey(sourceTranslationKey)) {
+                    column.pushDifference(DifferenceType.SYNC, sourceTranslationKey);
+                } else {
+                    column.pushDifference(DifferenceType.ADD, sourceTranslationKey);
+                }
+            }
+
+            for (String crowdinTranslationKey : column.getCrowdinTranslationKeys().keySet()) {
+                if (!column.getLocalTranslationKeys().contains(crowdinTranslationKey)) {
+                    column.pushDifference(DifferenceType.REMOVE, crowdinTranslationKey);
                 }
             }
         }
-
-        Logging.getLogger().log(Level.INFO, String.format(
-                "Differences: \n%s\n",
-                differences.entrySet().stream()
-                        .map(entry -> String.format("    %s: {%s}", entry.getKey(), entry.getValue().entrySet().stream().map(differenceItem -> String.format("[%s]%s", differenceItem.getValue().name(), differenceItem.getKey())).collect(Collectors.joining(", "))))
-                        .collect(Collectors.joining("\n"))
-        ));
 
         Logging.getLogger().log(Level.INFO, "Delegating differences to threads ...");
 
         Logging.getLogger().log(Level.INFO, "Processing concurrent actions ...");
         ExecutorService concurrentExecutorService = Executors.newFixedThreadPool(20);
-        for (Map.Entry<Character, Map<String, DifferenceType>> entry : differences.entrySet()) {
-            if (entry.getValue().size() == 0) {
-                continue;
+        for (Column column : columns.values()) {
+            for (Difference difference : column.getConcurrentDifferences()) {
+                concurrentExecutorService.submit(Lang.wrapCheckedException(switch (difference.getType()) {
+                    case SYNC -> () -> {
+                        for (AbstractI18NFile targetLanguage : targetLanguages) {
+                            targetLanguage.setTranslationValue(
+                                    difference.getKey(),
+                                    CrowdinAPI.getTranslationValue(
+                                                    token, project, column.getCrowdinTranslationKeys().get(difference.getKey()), targetLanguage.getLanguage()
+                                            ).collectAsList().stream()
+                                            .max(Comparator.comparingInt(CrowdinTranslationValueItemObject::getRating))
+                                            .map(CrowdinTranslationValueItemObject::getText)
+                                            .orElse("")
+                            );
+                        }
+
+                        Logging.getLogger().log(Level.INFO, String.format("[%s]%s FINISHED", difference.getType().name(), difference.getKey()));
+
+                    };
+                    default -> throw new IllegalStateException();
+                }));
             }
 
-            for (Map.Entry<String, DifferenceType> diffItem : entry.getValue().entrySet()) {
-                if (!diffItem.getValue().isAllowConcurrency()) {
-                    continue;
-                }
-                Map<String, CrowdinTranslationKeyItemObject> currentCrowdinTranslationKeys = crowdinTranslationKeys.get(entry.getKey());
+            column.getConcurrentDifferences().clear();
+        }
 
-                switch (diffItem.getValue()) {
-                    case SYNC -> {
-                        concurrentExecutorService.submit(Lang.wrapCheckedException(() -> {
-                            for (AbstractI18NFile targetLanguage : targetLanguages) {
-                                targetLanguage.setTranslationValue(
-                                        diffItem.getKey(),
-                                        CrowdinAPI.getTranslationValue(
-                                                        token, project, currentCrowdinTranslationKeys.get(diffItem.getKey()), targetLanguage.getLanguage()
-                                                ).collectAsList().stream()
-                                                .max(Comparator.comparingInt(CrowdinTranslationValueItemObject::getRating))
-                                                .map(CrowdinTranslationValueItemObject::getText)
-                                                .orElse("")
-                                );
-                            }
-
-                            Logging.getLogger().log(Level.INFO, String.format("~ %s - FINISHED", diffItem.getKey()));
-                        }));
-                    }
-                }
+        for (String path : crowdinFiles.keySet()) {
+            CrowdinFileObject file = crowdinFiles.get(path);
+            if (!columns.containsKey(file)) {
+                concurrentExecutorService.submit(Lang.wrapCheckedException(() -> {
+                    CrowdinAPI.deleteFile(token, project, file);
+                    crowdinFiles.remove(path);
+                    Logging.getLogger().log(Level.INFO, String.format("[REMOVE FILE]%s FINISHED", file.getPath()));
+                }));
             }
         }
 
@@ -190,45 +173,36 @@ public final class CrowdinSynchronizer {
             }
         }
 
-        ExecutorService unConcurrentExecutorService = Executors.newFixedThreadPool(20);
-
-        for (Map.Entry<Character, Map<String, DifferenceType>> entry : differences.entrySet()) {
-            if (entry.getValue().size() == 0) {
-                continue;
-            }
-
-            CrowdinFileObject file = files.get(entry.getKey());
-            Map<String, DifferenceType> currentDifferences = entry.getValue();
-            Map<String, CrowdinTranslationKeyItemObject> currentCrowdinTranslationKeys = crowdinTranslationKeys.get(entry.getKey());
-            unConcurrentExecutorService.submit(Lang.wrapCheckedException(() -> {
-                for (Map.Entry<String, DifferenceType> diffItem : currentDifferences.entrySet()) {
-                    if (diffItem.getValue().isAllowConcurrency()) {
-                        continue;
-                    }
-
-                    switch (diffItem.getValue()) {
+        ExecutorService blockedExecutorService = Executors.newFixedThreadPool(20);
+        Logging.getLogger().log(Level.INFO, "Processing blocked actions ...");
+        for (Column column : columns.values()) {
+            blockedExecutorService.submit(Lang.wrapCheckedException(() -> {
+                for (Difference difference : column.getBlockedDifferences()) {
+                    switch (difference.getType()) {
                         case ADD -> {
-                            CrowdinTranslationKeyItemObject key = CrowdinAPI.addTranslationKey(token, project, file, diffItem.getKey(), sourceLanguage.getTranslationValue(diffItem.getKey()));
-                            currentCrowdinTranslationKeys.put(key.getIdentifier(), key);
+                            CrowdinTranslationKeyItemObject key = CrowdinAPI.addTranslationKey(token, project, column.getCrowdinFile(), difference.getKey(), sourceLanguage.getTranslationValue(difference.getKey()));
+                            column.getCrowdinTranslationKeys().put(key.getIdentifier(), key);
                             for (AbstractI18NFile targetLanguage : targetLanguages) {
-                                CrowdinAPI.addTranslationValue(token, project, key, targetLanguage.getLanguage(), targetLanguage.getTranslationValue(diffItem.getKey()));
+                                String value = targetLanguage.getTranslationValue(difference.getKey());
+                                CrowdinAPI.addTranslationValue(token, project, key, targetLanguage.getLanguage(), value.length() == 0 ? "/" : value);
                             }
 
-                            Logging.getLogger().log(Level.INFO, String.format("+ %s - FINISHED", diffItem.getKey()));
+                            Logging.getLogger().log(Level.INFO, String.format("[%s]%s FINISHED", difference.getType().name(), difference.getKey()));
                         }
                         case REMOVE -> {
-                            CrowdinAPI.removeTranslationValue(token, project, currentCrowdinTranslationKeys.get(diffItem.getKey()));
+                            CrowdinAPI.removeTranslationValue(token, project, column.getCrowdinTranslationKeys().get(difference.getKey()));
 
-                            Logging.getLogger().log(Level.INFO, String.format("- %s - FINISHED", diffItem.getKey()));
+                            Logging.getLogger().log(Level.INFO, String.format("[%s]%s FINISHED", difference.getType().name(), difference.getKey()));
                         }
+                        default -> throw new IllegalStateException();
                     }
                 }
-            }), String.format("Differences Processor #%s", entry.getKey()));
+            }));
         }
 
-        unConcurrentExecutorService.shutdown();
+        blockedExecutorService.shutdown();
         while (true) {
-            boolean finished = unConcurrentExecutorService.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
+            boolean finished = blockedExecutorService.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
             if (finished) {
                 break;
             }
