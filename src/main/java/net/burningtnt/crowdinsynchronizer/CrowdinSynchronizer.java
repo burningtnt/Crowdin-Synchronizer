@@ -130,8 +130,8 @@ public final class CrowdinSynchronizer {
         ExecutorService concurrentExecutorService = Executors.newFixedThreadPool(20);
         for (Column column : columns.values()) {
             for (Difference difference : column.getConcurrentDifferences()) {
-                concurrentExecutorService.submit(Lang.wrapCheckedException(switch (difference.getType()) {
-                    case SYNC -> () -> {
+                if (difference.getType() == DifferenceType.SYNC) {
+                    concurrentExecutorService.submit(Lang.wrapCheckedException(() -> {
                         for (AbstractI18NFile targetLanguage : targetLanguages) {
                             targetLanguage.setTranslationValue(
                                     difference.getKey(),
@@ -145,10 +145,10 @@ public final class CrowdinSynchronizer {
                         }
 
                         Logging.getLogger().log(Level.INFO, String.format("[%s]%s FINISHED", difference.getType().name(), difference.getKey()));
-
-                    };
-                    default -> throw new IllegalStateException();
-                }));
+                    }));
+                } else {
+                    throw new IllegalStateException();
+                }
             }
 
             column.getConcurrentDifferences().clear();
