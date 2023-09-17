@@ -5,8 +5,11 @@ import net.burningtnt.crowdinsynchronizer.utils.io.ExceptionalConsumer;
 import net.burningtnt.crowdinsynchronizer.utils.io.ExceptionalRunnable;
 import net.burningtnt.crowdinsynchronizer.utils.io.ExceptionalSupplier;
 import net.burningtnt.crowdinsynchronizer.utils.logger.Logging;
+import net.burningtnt.crowdinsynchronizer.utils.logger.UnsafeAccess;
+import sun.misc.Unsafe;
 
 import java.io.*;
+import java.lang.reflect.Field;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -61,23 +64,13 @@ public final class Lang {
                 runnable.run();
             } catch (Throwable t) {
                 Logging.getLogger().log(Level.WARNING, "An Error encountered.", t);
-                rethrow(t);
+                forceThrow(t);
             }
         };
     }
 
-    public static void rethrow(Throwable t) {
-        if (t instanceof RuntimeException) {
-            if (t.getCause() == null) {
-                throw (RuntimeException) t;
-            } else {
-                rethrow(t.getCause());
-            }
-        } else if (t instanceof IOException) {
-            throw new UncheckedIOException("Rethrowed checked exception:" + t.getLocalizedMessage(), (IOException) t);
-        } else {
-            throw new RuntimeException("Rethrowed checked exception:" + t.getLocalizedMessage(), t);
-        }
+    public static void forceThrow(Throwable t) {
+        UnsafeAccess.throwException(t);
     }
 
     public static String readAllBytesAsString(InputStreamReader reader) throws IOException {

@@ -36,17 +36,23 @@ public final class CrowdinAPI {
         }
 
         public <T> T execute(HttpUriRequest request, ExceptionalFunction<HttpResponse, T, IOException> action) throws IOException {
-            try (CloseableHttpClient httpClient = this.builder.build()) {
-                HttpResponse response = httpClient.execute(request);
-                if (response.getStatusLine().getStatusCode() / 100 != 2) {
-                    throw new IOException(String.format("%s[%d]: %s.",
-                            response.getStatusLine().getReasonPhrase(), response.getStatusLine().getStatusCode(),
-                            Optional.ofNullable(response.getEntity())
-                                    .map(httpEntity -> Lang.tryInvoke(() -> Lang.readAllBytesAsString(() -> NetworkUtils.readResponseBody(httpEntity)), null))
-                                    .orElse("null")
-                    ));
+            while (true) {
+                try (CloseableHttpClient httpClient = this.builder.build()) {
+                    HttpResponse response = httpClient.execute(request);
+                    int statusCode = response.getStatusLine().getStatusCode();
+                    if (statusCode / 100 == 2) {
+                        return action.apply(response);
+                    } else {
+                        if (statusCode != 429) {
+                            throw new IOException(String.format("%s[%d]: %s.",
+                                    response.getStatusLine().getReasonPhrase(), response.getStatusLine().getStatusCode(),
+                                    Optional.ofNullable(response.getEntity())
+                                            .map(httpEntity -> Lang.tryInvoke(() -> Lang.readAllBytesAsString(() -> NetworkUtils.readResponseBody(httpEntity)), null))
+                                            .orElse("null")
+                            ));
+                        }
+                    }
                 }
-                return action.apply(response);
             }
         }
 
