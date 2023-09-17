@@ -26,15 +26,25 @@ public final class Main {
         Path hmclGitPath = Path.of(HMCL_GIT_REPOSITORY).toAbsolutePath();
 
         if (!Files.exists(hmclGitPath)) {
-            Logging.getLogger().log(Level.INFO, "Cloning HMCL git repository.");
+            Logging.getLogger().log(Level.INFO, "Cloning HMCL git repository ...");
             Lang.joinProcess(
                     new ProcessBuilder("git", "clone", "-b", "javafx", String.format("https://%s@github.com/huanghongxun/HMCL.git", githubToken), HMCL_GIT_REPOSITORY)
                             .directory(hmclGitPath.getParent().toFile())
             );
 
-            Logging.getLogger().log(Level.INFO, "Configuring local HMCL git repository.");
+            Logging.getLogger().log(Level.INFO, "Configuring local HMCL git repository ...");
             Lang.joinProcess(
                     new ProcessBuilder("git", "remote", "add", "fork-repository", "git@github.com:burningtnt/HMCL.git")
+                            .directory(hmclGitPath.toFile())
+            );
+
+            Lang.joinProcess(
+                    new ProcessBuilder("git", "config", "--local", "user.email", "41898282+github-actions[bot]@users.noreply.github.com")
+                            .directory(hmclGitPath.toFile())
+            );
+
+            Lang.joinProcess(
+                    new ProcessBuilder("git", "config", "--local", "user.name", "github-actions[bot]")
                             .directory(hmclGitPath.toFile())
             );
         }
