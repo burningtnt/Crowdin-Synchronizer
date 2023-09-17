@@ -168,7 +168,9 @@ public final class CrowdinSynchronizer {
                                 column.getCrowdinTranslationKeys().put(key.getIdentifier(), key);
                                 for (AbstractI18NFile targetLanguage : targetLanguages) {
                                     String value = targetLanguage.getTranslationValue(difference.getKey());
-                                    CrowdinAPI.addTranslationValue(token, project, key, targetLanguage.getLanguage(), value.length() == 0 ? "/" : value);
+                                    if (value.length() > 0) {
+                                        CrowdinAPI.addTranslationValue(token, project, key, targetLanguage.getLanguage(), value);
+                                    }
                                 }
 
                                 Logging.getLogger().log(Level.INFO, String.format("[%s]%s FINISHED", difference.getType().name(), difference.getKey()));
