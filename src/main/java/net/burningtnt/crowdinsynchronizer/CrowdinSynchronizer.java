@@ -15,9 +15,6 @@ import net.burningtnt.crowdinsynchronizer.utils.logger.Logging;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 
 public final class CrowdinSynchronizer {
@@ -40,11 +37,7 @@ public final class CrowdinSynchronizer {
         throw new IllegalArgumentException(String.format("Cannot find any project with name %s.", projectIdentifier));
     }
 
-    public static void init() {
-        Logging.init();
-    }
-
-    public static void sync(CrowdinToken token, String projectIdentifier, ExceptionalFunction<String, String, IllegalArgumentException> filePathProvider, AbstractI18NFile sourceLanguage, Collection<AbstractI18NFile> targetLanguages) throws IOException, InterruptedException {
+    public static void sync(CrowdinToken token, String projectIdentifier, ExceptionalFunction<String, String, IllegalArgumentException> filePathProvider, int threadN, AbstractI18NFile sourceLanguage, Collection<AbstractI18NFile> targetLanguages) throws IOException, InterruptedException {
         Logging.getLogger().log(Level.INFO, "Collecting local translations ...");
         sourceLanguage.load();
         for (AbstractI18NFile targetLanguage : targetLanguages) {
@@ -124,89 +117,73 @@ public final class CrowdinSynchronizer {
             }
         }
 
-        Logging.getLogger().log(Level.INFO, "Delegating differences to threads ...");
-
         Logging.getLogger().log(Level.INFO, "Processing concurrent actions ...");
-        ExecutorService concurrentExecutorService = Executors.newFixedThreadPool(20);
-        for (Column column : columns.values()) {
-            for (Difference difference : column.getConcurrentDifferences()) {
-                if (difference.getType() == DifferenceType.SYNC) {
-                    concurrentExecutorService.submit(Lang.wrapCheckedException(() -> {
-                        for (AbstractI18NFile targetLanguage : targetLanguages) {
-                            targetLanguage.setTranslationValue(
-                                    difference.getKey(),
-                                    CrowdinAPI.getTranslationValue(
-                                                    token, project, column.getCrowdinTranslationKeys().get(difference.getKey()), targetLanguage.getLanguage()
-                                            ).collectAsList().stream()
-                                            .max(Comparator.comparingInt(CrowdinTranslationValueItemObject::getRating))
-                                            .map(CrowdinTranslationValueItemObject::getText)
-                                            .orElse("")
-                            );
-                        }
-
-                        Logging.getLogger().log(Level.INFO, String.format("[%s]%s FINISHED", difference.getType().name(), difference.getKey()));
-                    }));
-                } else {
-                    throw new IllegalStateException();
-                }
-            }
-
-            column.getConcurrentDifferences().clear();
-        }
-
-        for (String path : crowdinFiles.keySet()) {
-            CrowdinFileObject file = crowdinFiles.get(path);
-            if (!columns.containsKey(file)) {
-                concurrentExecutorService.submit(Lang.wrapCheckedException(() -> {
-                    CrowdinAPI.deleteFile(token, project, file);
-                    crowdinFiles.remove(path);
-                    Logging.getLogger().log(Level.INFO, String.format("[REMOVE FILE]%s FINISHED", file.getPath()));
-                }));
-            }
-        }
-
-        concurrentExecutorService.shutdown();
-        while (true) {
-            boolean finished = concurrentExecutorService.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
-            if (finished) {
-                break;
-            }
-        }
-
-        ExecutorService blockedExecutorService = Executors.newFixedThreadPool(20);
-        Logging.getLogger().log(Level.INFO, "Processing blocked actions ...");
-        for (Column column : columns.values()) {
-            blockedExecutorService.submit(Lang.wrapCheckedException(() -> {
-                for (Difference difference : column.getBlockedDifferences()) {
-                    switch (difference.getType()) {
-                        case ADD -> {
-                            CrowdinTranslationKeyItemObject key = CrowdinAPI.addTranslationKey(token, project, column.getCrowdinFile(), difference.getKey(), sourceLanguage.getTranslationValue(difference.getKey()));
-                            column.getCrowdinTranslationKeys().put(key.getIdentifier(), key);
+        Lang.concurrentProcess(threadN, executorService -> {
+            for (Column column : columns.values()) {
+                for (Difference difference : column.getConcurrentDifferences()) {
+                    if (difference.getType() == DifferenceType.SYNC) {
+                        executorService.submit(Lang.wrapCheckedException(() -> {
                             for (AbstractI18NFile targetLanguage : targetLanguages) {
-                                String value = targetLanguage.getTranslationValue(difference.getKey());
-                                CrowdinAPI.addTranslationValue(token, project, key, targetLanguage.getLanguage(), value.length() == 0 ? "/" : value);
+                                targetLanguage.setTranslationValue(
+                                        difference.getKey(),
+                                        CrowdinAPI.getTranslationValue(
+                                                        token, project, column.getCrowdinTranslationKeys().get(difference.getKey()), targetLanguage.getLanguage()
+                                                ).collectAsList().stream()
+                                                .max(Comparator.comparingInt(CrowdinTranslationValueItemObject::getRating))
+                                                .map(CrowdinTranslationValueItemObject::getText)
+                                                .orElse("")
+                                );
                             }
 
                             Logging.getLogger().log(Level.INFO, String.format("[%s]%s FINISHED", difference.getType().name(), difference.getKey()));
-                        }
-                        case REMOVE -> {
-                            CrowdinAPI.removeTranslationKey(token, project, column.getCrowdinTranslationKeys().get(difference.getKey()));
-
-                            Logging.getLogger().log(Level.INFO, String.format("[%s]%s FINISHED", difference.getType().name(), difference.getKey()));
-                        }
-                        default -> throw new IllegalStateException();
+                        }));
+                    } else {
+                        throw new IllegalStateException();
                     }
                 }
-            }));
-        }
 
-        blockedExecutorService.shutdown();
-        while (true) {
-            boolean finished = blockedExecutorService.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
-            if (finished) {
-                break;
+                column.getConcurrentDifferences().clear();
             }
-        }
+
+            for (String path : crowdinFiles.keySet()) {
+                CrowdinFileObject file = crowdinFiles.get(path);
+                if (!columns.containsKey(file)) {
+                    executorService.submit(Lang.wrapCheckedException(() -> {
+                        CrowdinAPI.deleteFile(token, project, file);
+                        crowdinFiles.remove(path);
+                        Logging.getLogger().log(Level.INFO, String.format("[REMOVE FILE]%s FINISHED", file.getPath()));
+                    }));
+                }
+            }
+        });
+
+        Logging.getLogger().log(Level.INFO, "Processing blocked actions ...");
+        Lang.concurrentProcess(threadN, executorService -> {
+            for (Column column : columns.values()) {
+                executorService.submit(Lang.wrapCheckedException(() -> {
+                    for (Difference difference : column.getBlockedDifferences()) {
+                        switch (difference.getType()) {
+                            case ADD -> {
+                                CrowdinTranslationKeyItemObject key = CrowdinAPI.addTranslationKey(token, project, column.getCrowdinFile(), difference.getKey(), sourceLanguage.getTranslationValue(difference.getKey()));
+                                column.getCrowdinTranslationKeys().put(key.getIdentifier(), key);
+                                for (AbstractI18NFile targetLanguage : targetLanguages) {
+                                    String value = targetLanguage.getTranslationValue(difference.getKey());
+                                    CrowdinAPI.addTranslationValue(token, project, key, targetLanguage.getLanguage(), value.length() == 0 ? "/" : value);
+                                }
+
+                                Logging.getLogger().log(Level.INFO, String.format("[%s]%s FINISHED", difference.getType().name(), difference.getKey()));
+                            }
+                            case REMOVE -> {
+                                CrowdinAPI.removeTranslationKey(token, project, column.getCrowdinTranslationKeys().get(difference.getKey()));
+
+                                Logging.getLogger().log(Level.INFO, String.format("[%s]%s FINISHED", difference.getType().name(), difference.getKey()));
+                            }
+                            default -> throw new IllegalStateException();
+                        }
+                    }
+                }));
+            }
+        });
 
         Logging.getLogger().log(Level.INFO, "Saving I18N files.");
         sourceLanguage.save();

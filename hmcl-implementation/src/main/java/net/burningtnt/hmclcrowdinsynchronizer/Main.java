@@ -21,8 +21,7 @@ public final class Main {
     public static void main(String[] args) throws IOException, InterruptedException {
         String crowdinToken = System.getProperty("hmcl.cs.crowdinToken", "");
         String githubToken = System.getProperty("hmcl.cs.githubToken", "");
-
-        CrowdinSynchronizer.init();
+        String threadN = System.getProperty("hmcl.cs.threadN", "15");
 
         Path hmclGitPath = Path.of(HMCL_GIT_REPOSITORY).toAbsolutePath();
 
@@ -49,6 +48,7 @@ public final class Main {
                     int index = s.indexOf(".");
                     return (index == -1 ? s : s.substring(0, index)) + ".csv";
                 },
+                Integer.parseInt(threadN),
                 new PropertiesI18NFile("en", langDir.resolve("I18N.properties")),
                 List.of(
                         new PropertiesI18NFile("zh-CN", langDir.resolve("I18N_zh_CN.properties")),

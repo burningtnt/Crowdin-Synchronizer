@@ -8,6 +8,9 @@ import net.burningtnt.crowdinsynchronizer.utils.logger.Logging;
 
 import java.io.*;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.logging.Level;
@@ -95,6 +98,20 @@ public final class Lang {
         t.printStackTrace(printWriter);
         printWriter.close();
         return stringWriter.getBuffer().toString();
+    }
+
+    public static void concurrentProcess(int threadN, Consumer<ExecutorService> processor) throws InterruptedException {
+        ExecutorService executorService = Executors.newFixedThreadPool(threadN);
+
+        processor.accept(executorService);
+
+        executorService.shutdown();
+        while (true) {
+            boolean finished = executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
+            if (finished) {
+                break;
+            }
+        }
     }
 
     public static Process joinProcess(ProcessBuilder processBuilder) throws IOException, InterruptedException {

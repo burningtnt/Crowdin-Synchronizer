@@ -42,7 +42,7 @@ public final class Logging {
         return LOGGER;
     }
 
-    public static void init() {
+    static {
         LOGGER.setLevel(Level.ALL);
         LOGGER.setUseParentHandlers(false);
         LOGGER.setFilter(record -> {
