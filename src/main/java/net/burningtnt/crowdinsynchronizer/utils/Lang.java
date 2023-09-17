@@ -1,15 +1,19 @@
 package net.burningtnt.crowdinsynchronizer.utils;
 
-import com.google.gson.*;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import net.burningtnt.crowdinsynchronizer.utils.io.ExceptionalConsumer;
 import net.burningtnt.crowdinsynchronizer.utils.io.ExceptionalRunnable;
 import net.burningtnt.crowdinsynchronizer.utils.io.ExceptionalSupplier;
 import net.burningtnt.crowdinsynchronizer.utils.logger.Logging;
 import net.burningtnt.crowdinsynchronizer.utils.logger.UnsafeAccess;
-import sun.misc.Unsafe;
 
-import java.io.*;
-import java.lang.reflect.Field;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;

@@ -1,7 +1,5 @@
 package net.burningtnt.crowdinsynchronizer.utils.logger;
 
-import sun.misc.Unsafe;
-
 import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
 
@@ -10,13 +8,13 @@ public final class UnsafeAccess {
     private UnsafeAccess() {
     }
     
-    private static final Unsafe unsafe;
+    private static final sun.misc.Unsafe unsafe;
 
     static {
         try {
-            Field unsafeField = Unsafe.class.getDeclaredField("theUnsafe");
+            Field unsafeField = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
             unsafeField.setAccessible(true);
-            unsafe = (Unsafe) unsafeField.get(null);
+            unsafe = (sun.misc.Unsafe) unsafeField.get(null);
         } catch (NoSuchFieldException | IllegalAccessException e) {
             throw new Error("Cannot initialize unsafe.", e);
         }
