@@ -34,7 +34,7 @@ public final class Main {
 
             Logging.getLogger().log(Level.INFO, "Configuring local HMCL git repository ...");
             Lang.joinProcess(
-                    new ProcessBuilder("git", "remote", "add", "fork-repository", "git@github.com:burningtnt/HMCL.git")
+                    new ProcessBuilder("git", "remote", "add", "fork-repository", String.format("https://%s@github.com/burningtnt/HMCL.git", githubToken))
                             .directory(hmclGitPath.toFile())
             );
 
@@ -81,7 +81,7 @@ public final class Main {
         );
 
         Lang.joinProcess(
-                new ProcessBuilder("git", "push", "-f", "fork-repository", "crowdin-translations")
+                new ProcessBuilder("git", "push", "-f", "fork-repository", "javafx:crowdin-translations")
                         .directory(hmclGitPath.toFile())
         );
     }
