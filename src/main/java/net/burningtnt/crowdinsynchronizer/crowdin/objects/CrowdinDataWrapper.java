@@ -2,10 +2,10 @@ package net.burningtnt.crowdinsynchronizer.crowdin.objects;
 
 import com.google.gson.JsonElement;
 
-public final class DataItem {
+public final class CrowdinDataWrapper {
     private final JsonElement data;
 
-    private DataItem(JsonElement data) {
+    private CrowdinDataWrapper(JsonElement data) {
         this.data = data;
     }
 

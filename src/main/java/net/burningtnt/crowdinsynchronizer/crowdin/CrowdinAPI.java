@@ -76,16 +76,16 @@ public final class CrowdinAPI {
         String entity = Lang.readAllBytesAsString(() -> NetworkUtils.readResponseBody(response.getEntity()));
 
         return Lang.getGson().fromJson(
-                Lang.getGson().fromJson(entity, DataItem.class).getData(),
+                Lang.getGson().fromJson(entity, CrowdinDataWrapper.class).getData(),
                 type
         );
     }
 
-    public static CrowdinUserDataObject getCurrentUser(CrowdinToken token) throws IOException {
-        return getHttpClient(token).execute(new HttpGet("https://api.crowdin.com/api/v2/user"), CrowdinUserDataObject.class);
+    public static CrowdinUser getCurrentUser(CrowdinToken token) throws IOException {
+        return getHttpClient(token).execute(new HttpGet("https://api.crowdin.com/api/v2/user"), CrowdinUser.class);
     }
 
-    public static NetIterator<CrowdinProjectObject> getProjects(CrowdinToken token, CrowdinUserDataObject user) {
+    public static NetIterator<CrowdinProject> getProjects(CrowdinToken token, CrowdinUser user) {
         return new CrowdinPageIterator<>(pageData -> new HttpGet(CrowdinPageIterator.format(
                 "https://api.crowdin.com/api/v2/projects",
                 Map.of(
@@ -93,27 +93,27 @@ public final class CrowdinAPI {
                         "hasManagerAccess", "1"
                 ),
                 pageData
-        )), () -> getHttpClient(token), CrowdinProjectObject.class);
+        )), () -> getHttpClient(token), CrowdinProject.class);
     }
 
-    public static NetIterator<CrowdinFileObject> getFiles(CrowdinToken token, CrowdinProjectObject project) {
+    public static NetIterator<CrowdinFile> getFiles(CrowdinToken token, CrowdinProject project) {
         return new CrowdinPageIterator<>(pageData -> new HttpGet(CrowdinPageIterator.format(
                 String.format("https://api.crowdin.com/api/v2/projects/%s/files", project.getID()),
                 Map.of(),
                 pageData
-        )), () -> getHttpClient(token), CrowdinFileObject.class);
+        )), () -> getHttpClient(token), CrowdinFile.class);
     }
 
     private static final String[] FILE_DEFAULT_COLUMNS = {"identifier", "sourcePhrase", "context"};
 
-    public static CrowdinFileObject addFile(CrowdinToken token, CrowdinProjectObject project, String filePath, List<String> languages) throws IOException {
-        CrowdinStorageObject storage = getHttpClient(token).execute(Lang.tweak(new HttpPost(
+    public static CrowdinFile addFile(CrowdinToken token, CrowdinProject project, String filePath, List<String> languages) throws IOException {
+        CrowdinStorage storage = getHttpClient(token).execute(Lang.tweak(new HttpPost(
                 "https://api.crowdin.com/api/v2/storages"
         ), httpPost -> {
             int index = filePath.lastIndexOf("/");
             httpPost.setHeader("Crowdin-API-FileName", index == -1 ? filePath : filePath.substring(index));
             httpPost.setEntity(new StringEntity(",", ContentType.TEXT_PLAIN));
-        }), CrowdinStorageObject.class);
+        }), CrowdinStorage.class);
 
         return Lang.exceptionalTweak(
                 getHttpClient(token).execute(Lang.tweak(new HttpPost(
@@ -138,29 +138,29 @@ public final class CrowdinAPI {
                                     }))
                             ))
                     ))), ContentType.APPLICATION_JSON));
-                }), CrowdinFileObject.class),
+                }), CrowdinFile.class),
                 file -> getTranslationKeys(token, project, file).exceptionalForEachRemaining(key -> removeTranslationKey(token, project, key))
         );
     }
 
-    public static void deleteFile(CrowdinToken token, CrowdinProjectObject project, CrowdinFileObject file) throws IOException {
+    public static void deleteFile(CrowdinToken token, CrowdinProject project, CrowdinFile file) throws IOException {
         getHttpClient(token).execute(new HttpDelete(NetworkUtils.format(
                 String.format("https://api.crowdin.com/api/v2/projects/%s/files/%s", project.getID(), file.getID()),
                 Map.of()
         )));
     }
 
-    public static NetIterator<CrowdinTranslationKeyItemObject> getTranslationKeys(CrowdinToken token, CrowdinProjectObject project, CrowdinFileObject file) {
+    public static NetIterator<CrowdinTranslationKey> getTranslationKeys(CrowdinToken token, CrowdinProject project, CrowdinFile file) {
         return new CrowdinPageIterator<>(pageData -> new HttpGet(CrowdinPageIterator.format(
                 String.format("https://api.crowdin.com/api/v2/projects/%s/strings", project.getID()),
                 Map.of(
                         "fileId", String.valueOf(file.getID())
                 ),
                 pageData
-        )), () -> getHttpClient(token), CrowdinTranslationKeyItemObject.class);
+        )), () -> getHttpClient(token), CrowdinTranslationKey.class);
     }
 
-    public static CrowdinTranslationKeyItemObject addTranslationKey(CrowdinToken token, CrowdinProjectObject project, CrowdinFileObject file, String key, String sourceText) throws IOException {
+    public static CrowdinTranslationKey addTranslationKey(CrowdinToken token, CrowdinProject project, CrowdinFile file, String key, String sourceText) throws IOException {
         return getHttpClient(token).execute(Lang.exceptionalTweak(new HttpPost(
                 String.format("https://api.crowdin.com/api/v2/projects/%s/strings", project.getID())
         ), httpPost -> {
@@ -171,16 +171,16 @@ public final class CrowdinAPI {
                     "fileId", new JsonPrimitive(file.getID()),
                     "context", new JsonPrimitive("")
             ))), ContentType.APPLICATION_JSON));
-        }), CrowdinTranslationKeyItemObject.class);
+        }), CrowdinTranslationKey.class);
     }
 
-    public static void removeTranslationKey(CrowdinToken token, CrowdinProjectObject project, CrowdinTranslationKeyItemObject key) throws IOException {
+    public static void removeTranslationKey(CrowdinToken token, CrowdinProject project, CrowdinTranslationKey key) throws IOException {
         getHttpClient(token).execute(new HttpDelete(
                 String.format("https://api.crowdin.com/api/v2/projects/%s/strings/%s", project.getID(), key.getID())
         ));
     }
 
-    public static void addTranslationValue(CrowdinToken token, CrowdinProjectObject project, CrowdinTranslationKeyItemObject key, String languageID, String targetText) throws IOException {
+    public static void addTranslationValue(CrowdinToken token, CrowdinProject project, CrowdinTranslationKey key, String languageID, String targetText) throws IOException {
         getHttpClient(token).execute(Lang.exceptionalTweak(new HttpPost(
                 String.format("https://api.crowdin.com/api/v2/projects/%s/translations", project.getID())
         ), httpPost -> {
@@ -193,7 +193,7 @@ public final class CrowdinAPI {
         }));
     }
 
-    public static NetIterator<CrowdinTranslationValueItemObject> getTranslationValue(CrowdinToken token, CrowdinProjectObject project, CrowdinTranslationKeyItemObject key, String languageID) {
+    public static NetIterator<CrowdinTranslationValue> getTranslationValue(CrowdinToken token, CrowdinProject project, CrowdinTranslationKey key, String languageID) {
         return new CrowdinPageIterator<>(pageData -> new HttpGet(CrowdinPageIterator.format(
                 String.format("https://api.crowdin.com/api/v2/projects/%s/translations", project.getID()),
                 Map.of(
@@ -201,6 +201,6 @@ public final class CrowdinAPI {
                         "languageId", languageID
                 ),
                 pageData
-        )), () -> getHttpClient(token), CrowdinTranslationValueItemObject.class);
+        )), () -> getHttpClient(token), CrowdinTranslationValue.class);
     }
 }

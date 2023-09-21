@@ -1,13 +1,13 @@
 package net.burningtnt.crowdinsynchronizer.crowdin.objects;
 
-public final class CrowdinTranslationValueItemObject {
+public final class CrowdinTranslationValue {
     private final int id;
 
     private final String text;
 
     private final int rating;
 
-    public CrowdinTranslationValueItemObject(int id, String text, int rating) {
+    private CrowdinTranslationValue(int id, String text, int rating) {
         this.id = id;
         this.text = text;
         this.rating = rating;
@@ -30,7 +30,7 @@ public final class CrowdinTranslationValueItemObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        CrowdinTranslationValueItemObject that = (CrowdinTranslationValueItemObject) o;
+        CrowdinTranslationValue that = (CrowdinTranslationValue) o;
 
         if (id != that.id) return false;
         if (rating != that.rating) return false;

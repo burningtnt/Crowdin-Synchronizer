@@ -1,13 +1,13 @@
 package net.burningtnt.crowdinsynchronizer.crowdin.objects;
 
-public final class CrowdinProjectObject {
+public final class CrowdinProject {
     private final int id;
 
     private final String name;
 
     private final String identifier;
 
-    public CrowdinProjectObject(int id, String name, String identifier) {
+    private CrowdinProject(int id, String name, String identifier) {
         this.id = id;
         this.name = name;
         this.identifier = identifier;
@@ -30,7 +30,7 @@ public final class CrowdinProjectObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        CrowdinProjectObject that = (CrowdinProjectObject) o;
+        CrowdinProject that = (CrowdinProject) o;
 
         if (id != that.id) return false;
         if (!name.equals(that.name)) return false;

@@ -1,21 +1,21 @@
 package net.burningtnt.crowdinsynchronizer.crowdin.objects;
 
-public final class CrowdinUserDataObject {
+public final class CrowdinStorage {
     private final int id;
 
-    private final String username;
+    private final String fileName;
 
-    public CrowdinUserDataObject(int id, String username) {
+    private CrowdinStorage(int id, String fileName) {
         this.id = id;
-        this.username = username;
+        this.fileName = fileName;
     }
 
     public int getID() {
         return this.id;
     }
 
-    public String getUsername() {
-        return this.username;
+    public String getFileName() {
+        return this.fileName;
     }
 
     @Override
@@ -23,16 +23,16 @@ public final class CrowdinUserDataObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        CrowdinUserDataObject that = (CrowdinUserDataObject) o;
+        CrowdinStorage that = (CrowdinStorage) o;
 
         if (id != that.id) return false;
-        return username.equals(that.username);
+        return fileName.equals(that.fileName);
     }
 
     @Override
     public int hashCode() {
         int result = id;
-        result = 31 * result + username.hashCode();
+        result = 31 * result + fileName.hashCode();
         return result;
     }
 }

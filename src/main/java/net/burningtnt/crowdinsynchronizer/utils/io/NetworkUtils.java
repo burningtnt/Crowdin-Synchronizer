@@ -16,8 +16,8 @@ public final class NetworkUtils {
     private NetworkUtils() {
     }
 
-    public static String encodeURL(String url) {
-        return URLEncoder.encode(url, StandardCharsets.UTF_8);
+    public static String encodeURL(String text) {
+        return URLEncoder.encode(text, StandardCharsets.UTF_8);
     }
 
     public static URI format(String url, Map<String, String> queryArgs) throws IOException {

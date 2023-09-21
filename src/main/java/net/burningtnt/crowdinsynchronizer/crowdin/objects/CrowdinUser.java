@@ -1,21 +1,21 @@
 package net.burningtnt.crowdinsynchronizer.crowdin.objects;
 
-public final class CrowdinTranslationKeyItemObject {
+public final class CrowdinUser {
     private final int id;
 
-    private final String identifier;
+    private final String username;
 
-    private CrowdinTranslationKeyItemObject(int id, String identifier) {
+    private CrowdinUser(int id, String username) {
         this.id = id;
-        this.identifier = identifier;
+        this.username = username;
     }
 
     public int getID() {
         return this.id;
     }
 
-    public String getIdentifier() {
-        return this.identifier;
+    public String getUsername() {
+        return this.username;
     }
 
     @Override
@@ -23,16 +23,16 @@ public final class CrowdinTranslationKeyItemObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        CrowdinTranslationKeyItemObject that = (CrowdinTranslationKeyItemObject) o;
+        CrowdinUser that = (CrowdinUser) o;
 
         if (id != that.id) return false;
-        return identifier.equals(that.identifier);
+        return username.equals(that.username);
     }
 
     @Override
     public int hashCode() {
         int result = id;
-        result = 31 * result + identifier.hashCode();
+        result = 31 * result + username.hashCode();
         return result;
     }
 }

@@ -1,7 +1,7 @@
 package net.burningtnt.crowdinsynchronizer.datastructure;
 
-import net.burningtnt.crowdinsynchronizer.crowdin.objects.CrowdinFileObject;
-import net.burningtnt.crowdinsynchronizer.crowdin.objects.CrowdinTranslationKeyItemObject;
+import net.burningtnt.crowdinsynchronizer.crowdin.objects.CrowdinFile;
+import net.burningtnt.crowdinsynchronizer.crowdin.objects.CrowdinTranslationKey;
 
 import java.util.LinkedList;
 import java.util.List;
@@ -11,9 +11,9 @@ import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 
 public class Column {
-    private final CrowdinFileObject crowdinFile;
+    private final CrowdinFile crowdinFile;
 
-    private final Map<String, CrowdinTranslationKeyItemObject> crowdinTranslationKeys = new ConcurrentSkipListMap<>();
+    private final Map<String, CrowdinTranslationKey> crowdinTranslationKeys = new ConcurrentSkipListMap<>();
 
     private final Set<String> localTranslationKeys = new ConcurrentSkipListSet<>();
 
@@ -21,15 +21,15 @@ public class Column {
 
     private final List<Difference> blockedDifferences = new LinkedList<>();
 
-    public Column(CrowdinFileObject crowdinFile) {
+    public Column(CrowdinFile crowdinFile) {
         this.crowdinFile = crowdinFile;
     }
 
-    public CrowdinFileObject getCrowdinFile() {
+    public CrowdinFile getCrowdinFile() {
         return this.crowdinFile;
     }
 
-    public Map<String, CrowdinTranslationKeyItemObject> getCrowdinTranslationKeys() {
+    public Map<String, CrowdinTranslationKey> getCrowdinTranslationKeys() {
         return this.crowdinTranslationKeys;
     }
 

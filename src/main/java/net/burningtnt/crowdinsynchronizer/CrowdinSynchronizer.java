@@ -21,14 +21,14 @@ public final class CrowdinSynchronizer {
     private CrowdinSynchronizer() {
     }
 
-    private static CrowdinUserDataObject getCurrentUser(CrowdinToken token) throws IOException {
+    private static CrowdinUser getCurrentUser(CrowdinToken token) throws IOException {
         return CrowdinAPI.getCurrentUser(token);
     }
 
-    private static CrowdinProjectObject getSpecificProjectByProjectIdentifier(CrowdinToken token, CrowdinUserDataObject currentUser, String projectIdentifier) throws IOException {
-        NetIterator<CrowdinProjectObject> projectIterator = CrowdinAPI.getProjects(token, currentUser);
+    private static CrowdinProject getSpecificProjectByProjectIdentifier(CrowdinToken token, CrowdinUser currentUser, String projectIdentifier) throws IOException {
+        NetIterator<CrowdinProject> projectIterator = CrowdinAPI.getProjects(token, currentUser);
         while (projectIterator.hasNext()) {
-            for (CrowdinProjectObject item : projectIterator.next()) {
+            for (CrowdinProject item : projectIterator.next()) {
                 if (item.getIdentifier().equals(projectIdentifier)) {
                     return item;
                 }
@@ -57,16 +57,16 @@ public final class CrowdinSynchronizer {
         List<String> targetLanguageIDs = targetLanguages.stream().map(AbstractI18NFile::getLanguage).toList();
 
         Logging.getLogger().log(Level.INFO, "Logging in ...");
-        CrowdinUserDataObject currentUser = getCurrentUser(token);
+        CrowdinUser currentUser = getCurrentUser(token);
         Logging.getLogger().log(Level.INFO, String.format("Logged in as %s (%d).", currentUser.getUsername(), currentUser.getID()));
 
         Logging.getLogger().log(Level.INFO, "Getting specific project ...");
-        CrowdinProjectObject project = getSpecificProjectByProjectIdentifier(token, currentUser, projectIdentifier);
+        CrowdinProject project = getSpecificProjectByProjectIdentifier(token, currentUser, projectIdentifier);
         Logging.getLogger().log(Level.INFO, String.format("Current project: %s.", project.getIdentifier()));
 
         Logging.getLogger().log(Level.INFO, "Collecting crowdin translation files ...");
-        Map<String, CrowdinFileObject> crowdinFiles = new ConcurrentSkipListMap<>(); // Crowdin File Path -> Crowdin File Object
-        Map<CrowdinFileObject, Column> columns = new TreeMap<>(); // Crowdin File Object -> Column
+        Map<String, CrowdinFile> crowdinFiles = new ConcurrentSkipListMap<>(); // Crowdin File Path -> Crowdin File Object
+        Map<CrowdinFile, Column> columns = new TreeMap<>(); // Crowdin File Object -> Column
         CrowdinAPI.getFiles(token, project).forEachRemaining(crowdinFile -> crowdinFiles.put(crowdinFile.getPath(), crowdinFile));
         Logging.getLogger().log(Level.INFO, String.format(
                 "Collected crowdin translation files: %s.",
@@ -77,7 +77,7 @@ public final class CrowdinSynchronizer {
         for (String sourceTranslationKey : sourceLanguage.getTranslationKeys()) {
             String filePath = filePathProvider.apply(sourceTranslationKey);
             if (crowdinFiles.containsKey("/" + filePath)) {
-                CrowdinFileObject crowdinFile = crowdinFiles.get("/" + filePath);
+                CrowdinFile crowdinFile = crowdinFiles.get("/" + filePath);
                 Column column = columns.get(crowdinFile);
                 if (column == null) {
                     column = new Column(crowdinFile);
@@ -93,7 +93,7 @@ public final class CrowdinSynchronizer {
                 column.getLocalTranslationKeys().add(sourceTranslationKey);
             } else {
                 Logging.getLogger().log(Level.INFO, String.format("Missing crowdin translation file %s (for key %s), creating ...", filePath, sourceTranslationKey));
-                CrowdinFileObject crowdinFile = CrowdinAPI.addFile(token, project, filePath, targetLanguageIDs);
+                CrowdinFile crowdinFile = CrowdinAPI.addFile(token, project, filePath, targetLanguageIDs);
                 crowdinFiles.put(crowdinFile.getPath(), crowdinFile);
                 Column column = columns.computeIfAbsent(crowdinFile, Column::new);
                 column.getLocalTranslationKeys().add(sourceTranslationKey);
@@ -129,8 +129,8 @@ public final class CrowdinSynchronizer {
                                         CrowdinAPI.getTranslationValue(
                                                         token, project, column.getCrowdinTranslationKeys().get(difference.getKey()), targetLanguage.getLanguage()
                                                 ).collectAsList().stream()
-                                                .max(Comparator.comparingInt(CrowdinTranslationValueItemObject::getRating))
-                                                .map(CrowdinTranslationValueItemObject::getText)
+                                                .max(Comparator.comparingInt(CrowdinTranslationValue::getRating))
+                                                .map(CrowdinTranslationValue::getText)
                                                 .orElse("")
                                 );
                             }
@@ -146,7 +146,7 @@ public final class CrowdinSynchronizer {
             }
 
             for (String path : crowdinFiles.keySet()) {
-                CrowdinFileObject file = crowdinFiles.get(path);
+                CrowdinFile file = crowdinFiles.get(path);
                 if (!columns.containsKey(file)) {
                     executorService.submit(Lang.wrapCheckedException(() -> {
                         CrowdinAPI.deleteFile(token, project, file);
@@ -164,7 +164,7 @@ public final class CrowdinSynchronizer {
                     for (Difference difference : column.getBlockedDifferences()) {
                         switch (difference.getType()) {
                             case ADD -> {
-                                CrowdinTranslationKeyItemObject key = CrowdinAPI.addTranslationKey(token, project, column.getCrowdinFile(), difference.getKey(), sourceLanguage.getTranslationValue(difference.getKey()));
+                                CrowdinTranslationKey key = CrowdinAPI.addTranslationKey(token, project, column.getCrowdinFile(), difference.getKey(), sourceLanguage.getTranslationValue(difference.getKey()));
                                 column.getCrowdinTranslationKeys().put(key.getIdentifier(), key);
                                 for (AbstractI18NFile targetLanguage : targetLanguages) {
                                     String value = targetLanguage.getTranslationValue(difference.getKey());

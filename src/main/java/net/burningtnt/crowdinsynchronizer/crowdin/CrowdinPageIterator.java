@@ -1,6 +1,6 @@
 package net.burningtnt.crowdinsynchronizer.crowdin;
 
-import net.burningtnt.crowdinsynchronizer.crowdin.objects.DataItem;
+import net.burningtnt.crowdinsynchronizer.crowdin.objects.CrowdinDataWrapper;
 import net.burningtnt.crowdinsynchronizer.utils.Lang;
 import net.burningtnt.crowdinsynchronizer.utils.io.ExceptionalFunction;
 import net.burningtnt.crowdinsynchronizer.utils.io.NetIterator;
@@ -38,11 +38,11 @@ public final class CrowdinPageIterator<E> implements NetIterator<E> {
             }
         }
 
-        private final DataItem[] data;
+        private final CrowdinDataWrapper[] data;
 
         private final PageData pagination;
 
-        private PageDataContainer(DataItem[] data, PageData pagination) {
+        private PageDataContainer(CrowdinDataWrapper[] data, PageData pagination) {
             this.data = data;
             this.pagination = pagination;
         }
@@ -104,7 +104,7 @@ public final class CrowdinPageIterator<E> implements NetIterator<E> {
                 )
         );
         this.responses = Arrays.stream(pageDataContainer.data).map(
-                dataItem -> Lang.getGson().fromJson(dataItem.getData(), this.dataType)
+                crowdinDataWrapper -> Lang.getGson().fromJson(crowdinDataWrapper.getData(), this.dataType)
         ).collect(Collectors.toList());
         this.responseOffset = this.currentOffset;
         this.pageData = pageDataContainer.pagination;
