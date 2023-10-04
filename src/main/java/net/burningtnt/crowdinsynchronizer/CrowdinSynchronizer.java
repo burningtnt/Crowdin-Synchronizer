@@ -37,6 +37,26 @@ public final class CrowdinSynchronizer {
         throw new IllegalArgumentException(String.format("Cannot find any project with name %s.", projectIdentifier));
     }
 
+    /**
+     * Sync the translations between local files and Crowdin.
+     *
+     * @param token             The token of Crowdin.
+     * @param projectIdentifier The ID of the project.
+     * @param filePathProvider  A Function mapped the translation key and the file path.
+     *                          For example, this is a valid file path provider.
+     *                          <pre> {@code s -> {
+     *                              int index = s.indexOf(".");
+     *                              return (index == -1 ? s : s.substring(0, index)) + ".csv";
+     *                          }}</pre>
+     *                          This function is used to decide which file should the translation key be stored in.
+     *                          It can make the synchronizer faster as Crowdin doesn't allow us to write in multi-thread.
+     * @param threadN The thread number.
+     * @param sourceLanguage The source language.
+     * @param targetLanguages The target languages.
+     * @throws IOException When a NIO exception is encounted.
+     * @throws InterruptedException When the thread is interrupted.
+     */
+
     public static void sync(CrowdinToken token, String projectIdentifier, ExceptionalFunction<String, String, IllegalArgumentException> filePathProvider, int threadN, AbstractI18NFile sourceLanguage, Collection<AbstractI18NFile> targetLanguages) throws IOException, InterruptedException {
         Logging.getLogger().log(Level.INFO, "Collecting local translations ...");
         sourceLanguage.load();
